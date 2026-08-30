@@ -1,0 +1,22 @@
+name: MIRA LIVE baseline provider compatibility sample
+on:
+  push:
+    paths:
+      - 'scripts/export_pbp_provider_compat_sample.py'
+      - '.github/workflows/provider-compat-sample.yml'
+  workflow_dispatch:
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install pandas pyarrow numpy scikit-learn
+      - name: Export exact PBP advanced sample
+        run: PYTHONPATH=scripts python scripts/export_pbp_provider_compat_sample.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mira-live-provider-compat-sample
+          path: artifacts/provider_compat_sample/
