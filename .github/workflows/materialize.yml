@@ -1,0 +1,39 @@
+name: MIRA LIVE corpus materialization
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/materialize.py'
+      - 'requirements.txt'
+      - '.github/workflows/materialize.yml'
+
+permissions:
+  contents: read
+
+env:
+  PYTHONUNBUFFERED: '1'
+
+jobs:
+  materialize:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      - name: Download, hash-verify, and audit corpus
+        run: python scripts/materialize.py
+      - name: Upload materialized corpus artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: mira-live-wnba-2023-2025-materialized
+          path: artifacts/materialized/
+          if-no-files-found: error
+          retention-days: 30
