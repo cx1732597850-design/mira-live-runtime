@@ -1,0 +1,22 @@
+name: MIRA LIVE runtime v3 frozen bundle
+on:
+  push:
+    paths:
+      - 'scripts/build_runtime_v3_bundle.py'
+      - '.github/workflows/runtime-v3-bundle.yml'
+  workflow_dispatch:
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install pandas pyarrow numpy scikit-learn
+      - name: Build frozen model bundle
+        run: PYTHONPATH=scripts python scripts/build_runtime_v3_bundle.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mira-live-runtime-v3-bundle
+          path: artifacts/runtime_v3_bundle/
