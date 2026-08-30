@@ -1,0 +1,31 @@
+{
+  "contract_id":"MIRA-WNBA-LIVE-PREGAME-BASELINE-PROVIDER-V1",
+  "scope":"MIRA LIVE TREND ONLY",
+  "formula_identity":"For each team, arithmetic mean of per-game ORtg, DRtg, NetRtg and Pace over the last up to 10 completed games strictly before the target game; minimum 3 completed games. Then TEAM_A minus TEAM_B for net, pace, offense and defense; pregame_games_min is the lesser sample count.",
+  "primary_provider":"STATMUSE_WNBA_GAME_LEVEL_ADVANCED",
+  "acquisition_query_template":"<team full name> last 10 games pace offensive rating defensive rating each game WNBA",
+  "required_provider_rows":["DATE","ORTG","DRTG","PACE"],
+  "required_checks":[
+    "WNBA namespace, not NBA",
+    "exact full team identity",
+    "all rows are completed games before target game",
+    "3 to 10 rows per team",
+    "NetRtg per row = ORtg - DRtg",
+    "arithmetic mean across returned per-game rows, not provider aggregate shortcut",
+    "baseline capture/as-of no more than 36 hours before LIVE state",
+    "source URL or provider result identity and content fingerprint recorded"
+  ],
+  "fail_closed":[
+    "provider unavailable",
+    "provider returns aggregate only without per-game ORtg/DRtg/Pace rows",
+    "wrong sport/team identity",
+    "fewer than 3 completed prior games",
+    "target/current game included",
+    "stale provenance",
+    "missing source identity/fingerprint"
+  ],
+  "fail_status":"NOT_READY / BASELINE_SOURCE_UNRESOLVED",
+  "legacy_2026_possession_asset":{"asset_id":511136104,"sha256":"5d17cfab7da2228a9bf5677661e570fd2fd0a66a5ec7df9648d1dbe3b9e64a8e","role":"verification/replay only after freshness audit; not assumed current for live baseline"},
+  "no_silent_fallback":true,
+  "betting_layer":"DISABLED"
+}
