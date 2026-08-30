@@ -55,7 +55,7 @@ def main():
     x=dict(base); x['cur_margin']=999; require_not_ready(v3.infer(x),'STATE_IDENTITY_MISMATCH')
     x=dict(base); x['pregame_games_min']=2; require_not_ready(v3.infer(x),'BASELINE_PRIOR_GAMES_IDENTITY_MISMATCH')
     x=dict(base); x['baseline_window_games_a']=2; require_not_ready(v3.infer(x),'BASELINE_WINDOW_COUNT_INVALID')
-    x=dict(base); x['baseline_prior_games_a']=2; x['baseline_window_games_a']=2; x['pregame_games_min']=2; require_not_ready(v3.infer(x),'BASELINE_PRIOR_COUNT_INVALID')
+    x=dict(base); x['baseline_prior_games_a']=2; x['baseline_window_games_a']=3; x['pregame_games_min']=2; require_not_ready(v3.infer(x),'BASELINE_PRIOR_COUNT_INVALID')
     x=dict(base); x['baseline_asof_et']='2026-08-27T00:00:00-04:00'; require_not_ready(v3.infer(x),'BASELINE_SOURCE_STALE')
     x=dict(base); x['baseline_provider']='WRONG'; require_not_ready(v3.infer(x),'BASELINE_PROVIDER_MISMATCH')
     x=dict(base); x['pregame_net_diff']=x['pregame_net_diff']+1; require_not_ready(v3.infer(x),'BASELINE_IDENTITY_MISMATCH')
