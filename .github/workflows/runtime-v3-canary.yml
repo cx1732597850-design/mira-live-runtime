@@ -1,0 +1,24 @@
+name: MIRA LIVE runtime v3 production canary
+on:
+  push:
+    paths:
+      - 'scripts/trend_runtime_v3.py'
+      - 'scripts/runtime_v3_canary.py'
+      - 'runtime/runtime_v3_linear_bundle.json'
+      - '.github/workflows/runtime-v3-canary.yml'
+  workflow_dispatch:
+jobs:
+  canary:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install pandas pyarrow numpy scikit-learn
+      - name: Run full LIVE input-adapter and frozen-inference canaries
+        run: PYTHONPATH=scripts python scripts/runtime_v3_canary.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mira-live-runtime-v3-canary
+          path: artifacts/runtime_v3_canary/
