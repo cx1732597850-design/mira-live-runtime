@@ -1,0 +1,38 @@
+name: MIRA LIVE trend-only verification
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/fit_validate.py'
+      - 'scripts/trend_canary.py'
+      - 'requirements.txt'
+      - '.github/workflows/trend-verify.yml'
+permissions:
+  contents: read
+jobs:
+  trend-verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      - name: Rebuild untouched OOS evidence
+        run: python scripts/fit_validate.py
+      - name: Run trend-strength canaries
+        run: python scripts/trend_canary.py
+      - name: Upload trend verification evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: mira-live-trend-only-verification
+          path: |
+            artifacts/fit_oos/oos_report.json
+            artifacts/fit_oos/oos_predictions_2025.csv
+            artifacts/trend_verification/
+          retention-days: 30
