@@ -1,12 +1,13 @@
-import json, math, hashlib
+import json, math
 from pathlib import Path
 from datetime import datetime
 
 BUNDLE_PATH=Path(__file__).resolve().parents[1]/'runtime'/'runtime_v3_linear_bundle.json'
 STAT_KEYS=['fg2a','fg2m','fg3a','fg3m','fta','ftm','oreb','dreb','tov']
 BASELINE_KEYS=['pregame_net_diff','pregame_pace_diff','pregame_off_diff','pregame_def_diff','pregame_games_min']
-META_KEYS=['game_id','team_a_id','team_b_id','mode','period','clock_seconds_remaining','captured_at_et','execution_time_et','input_source','source_event_id','baseline_provider','baseline_asof_et','baseline_source_id','baseline_source_hash']
+META_KEYS=['game_id','team_a_id','team_b_id','mode','period','clock_seconds_remaining','captured_at_et','execution_time_et','input_source','source_event_id','baseline_provider','baseline_asof_et','baseline_source_id','baseline_source_hash','baseline_games_a','baseline_games_b']
 VALID_MODES={'Q1_2P5','Q1_END','Q2_2P5'}
+BASELINE_PROVIDER='STATMUSE_WNBA_GAME_LEVEL_ADVANCED'
 
 
 def load_bundle():
@@ -28,7 +29,6 @@ def parse_dt(x):
 
 
 def normalise_team(p,prefix):
-    # Accept canonical 2P/3P fields or screenshot-friendly FG + 3P fields.
     q={}
     for k in ['score','poss','fg2a','fg2m','fg3a','fg3m','fta','ftm','oreb','dreb','tov','fgm','fga']:
         key=f'{prefix}_{k}'
@@ -40,7 +40,6 @@ def normalise_team(p,prefix):
     if miss: return None,miss
     try: q={k:float(v) for k,v in q.items()}
     except Exception: return None,[f'{prefix}_NON_NUMERIC']
-    # If exact possessions are not supplied by the source, derive a deterministic box-score estimate.
     if 'poss' not in q:
         q['poss']=(q['fg2a']+q['fg3a'])+0.44*q['fta']-q['oreb']+q['tov']
         q['poss_method']='BOX_ESTIMATE_044'
@@ -82,6 +81,7 @@ def dot(model,features,row):
 def infer(payload):
     missing=[k for k in META_KEYS+BASELINE_KEYS if k not in payload or payload[k] is None]
     if missing: return fail('MISSING_REQUIRED_FIELDS',missing=missing)
+    if not str(payload['input_source']).strip(): return fail('INPUT_SOURCE_INVALID')
     mode=str(payload['mode'])
     if mode not in VALID_MODES: return fail('INVALID_MODE')
     if str(payload['team_a_id'])==str(payload['team_b_id']): return fail('TEAM_IDENTITY_MISMATCH')
@@ -97,13 +97,21 @@ def infer(payload):
     if base>cap: return fail('BASELINE_AFTER_LIVE_STATE')
     baseline_age=(cap-base).total_seconds()
     if baseline_age>36*3600: return fail('BASELINE_SOURCE_STALE',baseline_age_hours=baseline_age/3600)
-    if str(payload['baseline_provider']).strip()=='' or str(payload['baseline_source_id']).strip()=='' or len(str(payload['baseline_source_hash']).strip())<16:
-        return fail('BASELINE_PROVENANCE_INVALID')
+    if str(payload['baseline_provider'])!=BASELINE_PROVIDER: return fail('BASELINE_PROVIDER_MISMATCH',required=BASELINE_PROVIDER)
+    h=str(payload['baseline_source_hash']).strip().lower()
+    if not str(payload['baseline_source_id']).strip() or len(h)!=64 or any(c not in '0123456789abcdef' for c in h): return fail('BASELINE_PROVENANCE_INVALID')
     try:
+        ga=int(payload['baseline_games_a']); gb=int(payload['baseline_games_b'])
+        if not (3<=ga<=10 and 3<=gb<=10): return fail('BASELINE_SAMPLE_COUNT_INVALID')
         for k in BASELINE_KEYS:
             if not math.isfinite(float(payload[k])): return fail('BASELINE_NONFINITE',field=k)
+        if int(float(payload['pregame_games_min']))!=min(ga,gb): return fail('BASELINE_SAMPLE_IDENTITY_MISMATCH')
         if float(payload['pregame_games_min'])<3: return fail('INSUFFICIENT_2026_PREGAME_BASELINE')
-    except Exception: return fail('BASELINE_NON_NUMERIC')
+        # Because NetRtg is defined row-wise as ORtg-DRtg and arithmetic means are used, the differences must obey this identity.
+        if abs(float(payload['pregame_net_diff'])-(float(payload['pregame_off_diff'])-float(payload['pregame_def_diff'])))>1e-6:
+            return fail('BASELINE_IDENTITY_MISMATCH')
+    except ValueError: return fail('BASELINE_NON_NUMERIC')
+    except TypeError: return fail('BASELINE_NON_NUMERIC')
     a,ma=normalise_team(payload,'a'); b,mb=normalise_team(payload,'b')
     if ma or mb: return fail('MISSING_REQUIRED_FEATURES',missing=ma+mb)
     ea=validate_team(a,'A'); eb=validate_team(b,'B')
@@ -117,7 +125,6 @@ def infer(payload):
         for k in STAT_KEYS: row[f'{pref}_{k}']=q[k]
     row['cur_margin']=a['score']-b['score']; row['cur_total']=a['score']+b['score']; row['poss_total']=a['poss']+b['poss']; row['poss_diff']=a['poss']-b['poss']; row['elapsed_sec']=el; row['pace_poss_per_min']=row['poss_total']/(el/60.0)
     for k in BASELINE_KEYS: row[k]=float(payload[k])
-    # Any caller-supplied derived feature must agree; it can never override canonical computation.
     for k in ['cur_margin','cur_total','poss_total','poss_diff','elapsed_sec','pace_poss_per_min']:
         if k in payload and payload[k] is not None:
             try:
@@ -128,7 +135,7 @@ def infer(payload):
     if miss: return fail('MISSING_MODEL_FEATURES',missing=miss)
     m=bundle['modes'][mode]; pm=dot(m['margin'],features,row); pt=dot(m['total'],features,row)
     status='PREVIEW_CHECK' if mode=='Q1_END' else 'TREND_FINAL'
-    return {'status':status,'game_id':str(payload['game_id']),'team_a_id':str(payload['team_a_id']),'team_b_id':str(payload['team_b_id']),'mode':mode,'pred_margin':pm,'fair_spread':pm,'pred_total':pt,'direction':'TEAM_A' if pm>0 else ('TEAM_B' if pm<0 else 'TIE'),'trend_strength':strength(pm),'possession_method_a':a['poss_method'],'possession_method_b':b['poss_method'],'input_contract':'PASS','bundle_version':bundle['version'],'bundle_sha256_source':bundle['bundle_sha256_source'],'betting_layer':'DISABLED'}
+    return {'status':status,'game_id':str(payload['game_id']),'team_a_id':str(payload['team_a_id']),'team_b_id':str(payload['team_b_id']),'mode':mode,'pred_margin':pm,'fair_spread':pm,'pred_total':pt,'direction':'TEAM_A' if pm>0 else ('TEAM_B' if pm<0 else 'TIE'),'trend_strength':strength(pm),'possession_method_a':a['poss_method'],'possession_method_b':b['poss_method'],'input_contract':'PASS','baseline_contract':'PASS','baseline_provider':BASELINE_PROVIDER,'bundle_version':bundle['version'],'bundle_sha256_source':bundle['bundle_sha256_source'],'betting_layer':'DISABLED'}
 
 if __name__=='__main__':
     import sys
