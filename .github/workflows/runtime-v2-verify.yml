@@ -1,0 +1,23 @@
+name: MIRA LIVE runtime v2 verification
+on:
+  push:
+    paths:
+      - 'scripts/trend_runtime_v2.py'
+      - '.github/workflows/runtime-v2-verify.yml'
+  workflow_dispatch:
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install pandas pyarrow numpy scikit-learn
+      - name: Verify 2025 OOS and 2026 pregame baseline coverage
+        run: python scripts/trend_runtime_v2.py verify
+      - name: Upload verification evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: mira-live-runtime-v2-verification
+          path: artifacts/runtime_v2/
