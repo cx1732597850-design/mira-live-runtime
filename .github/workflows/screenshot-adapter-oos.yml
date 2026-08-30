@@ -1,0 +1,22 @@
+name: MIRA LIVE screenshot adapter OOS verification
+on:
+  push:
+    paths:
+      - 'scripts/verify_screenshot_adapter_oos.py'
+      - '.github/workflows/screenshot-adapter-oos.yml'
+  workflow_dispatch:
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install pandas pyarrow numpy scikit-learn
+      - name: Validate screenshot possession adapter on untouched 2025 OOS
+        run: PYTHONPATH=scripts python scripts/verify_screenshot_adapter_oos.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mira-live-screenshot-adapter-oos
+          path: artifacts/screenshot_adapter_oos/
