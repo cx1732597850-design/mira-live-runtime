@@ -1,0 +1,30 @@
+name: MIRA LIVE 1Q 1H fit OOS
+
+on:
+  push:
+    paths:
+      - 'scripts/fit_validate.py'
+      - '.github/workflows/fit-oos.yml'
+  workflow_dispatch:
+
+jobs:
+  fit-oos:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      - name: Build state windows and run 2025 untouched OOS
+        run: python scripts/fit_validate.py
+      - name: Upload fit/OOS evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: mira-live-1q-1h-fit-oos
+          path: artifacts/fit_oos/
+          if-no-files-found: error
+          retention-days: 30
