@@ -5,7 +5,7 @@ from datetime import datetime
 BUNDLE_PATH=Path(__file__).resolve().parents[1]/'runtime'/'runtime_v3_linear_bundle.json'
 STAT_KEYS=['fg2a','fg2m','fg3a','fg3m','fta','ftm','oreb','dreb','tov']
 BASELINE_KEYS=['pregame_net_diff','pregame_pace_diff','pregame_off_diff','pregame_def_diff','pregame_games_min']
-META_KEYS=['game_id','team_a_id','team_b_id','mode','period','clock_seconds_remaining','captured_at_et','execution_time_et','input_source','source_event_id','baseline_provider','baseline_asof_et','baseline_source_id','baseline_source_hash','baseline_games_a','baseline_games_b']
+META_KEYS=['game_id','team_a_id','team_b_id','mode','period','clock_seconds_remaining','captured_at_et','execution_time_et','input_source','source_event_id','baseline_provider','baseline_asof_et','baseline_source_id','baseline_source_hash','baseline_window_games_a','baseline_window_games_b','baseline_prior_games_a','baseline_prior_games_b']
 VALID_MODES={'Q1_2P5','Q1_END','Q2_2P5'}
 BASELINE_PROVIDER='STATMUSE_WNBA_GAME_LEVEL_ADVANCED'
 
@@ -101,17 +101,15 @@ def infer(payload):
     h=str(payload['baseline_source_hash']).strip().lower()
     if not str(payload['baseline_source_id']).strip() or len(h)!=64 or any(c not in '0123456789abcdef' for c in h): return fail('BASELINE_PROVENANCE_INVALID')
     try:
-        ga=int(payload['baseline_games_a']); gb=int(payload['baseline_games_b'])
-        if not (3<=ga<=10 and 3<=gb<=10): return fail('BASELINE_SAMPLE_COUNT_INVALID')
+        wa=int(payload['baseline_window_games_a']); wb=int(payload['baseline_window_games_b']); pa=int(payload['baseline_prior_games_a']); pb=int(payload['baseline_prior_games_b'])
+        if not (3<=wa<=10 and 3<=wb<=10): return fail('BASELINE_WINDOW_COUNT_INVALID')
+        if pa<3 or pb<3 or wa!=min(pa,10) or wb!=min(pb,10): return fail('BASELINE_PRIOR_COUNT_INVALID')
         for k in BASELINE_KEYS:
             if not math.isfinite(float(payload[k])): return fail('BASELINE_NONFINITE',field=k)
-        if int(float(payload['pregame_games_min']))!=min(ga,gb): return fail('BASELINE_SAMPLE_IDENTITY_MISMATCH')
-        if float(payload['pregame_games_min'])<3: return fail('INSUFFICIENT_2026_PREGAME_BASELINE')
-        # Because NetRtg is defined row-wise as ORtg-DRtg and arithmetic means are used, the differences must obey this identity.
+        if int(float(payload['pregame_games_min']))!=min(pa,pb): return fail('BASELINE_PRIOR_GAMES_IDENTITY_MISMATCH')
         if abs(float(payload['pregame_net_diff'])-(float(payload['pregame_off_diff'])-float(payload['pregame_def_diff'])))>1e-6:
             return fail('BASELINE_IDENTITY_MISMATCH')
-    except ValueError: return fail('BASELINE_NON_NUMERIC')
-    except TypeError: return fail('BASELINE_NON_NUMERIC')
+    except (ValueError,TypeError): return fail('BASELINE_NON_NUMERIC')
     a,ma=normalise_team(payload,'a'); b,mb=normalise_team(payload,'b')
     if ma or mb: return fail('MISSING_REQUIRED_FEATURES',missing=ma+mb)
     ea=validate_team(a,'A'); eb=validate_team(b,'B')
