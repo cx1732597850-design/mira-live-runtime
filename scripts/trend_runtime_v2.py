@@ -54,7 +54,7 @@ def full_game_team_rows(df,season):
         for t,opp,x,y in [(a,b,ta,tb),(b,a,tb,ta)]:
             rows.append({'season':season,'game_id':str(gid),'order':game_order_key(gid),'team':str(t),'opp':str(opp),
                          'off_rtg':100*x['score']/poss,'def_rtg':100*y['score']/poss,'net_rtg':100*(x['score']-y['score'])/poss,
-                         'pace':poss/40.0*40.0})
+                         'pace':poss})
     return pd.DataFrame(rows).sort_values(['order','game_id','team']).reset_index(drop=True)
 
 def add_pregame_baseline(games):
@@ -79,13 +79,11 @@ def build_states(df):
     for (season,gid),g in df.groupby(['season','game_id'],sort=False):
         teams=sorted(set(g.offense_team_id.unique()).union(set(g.defense_team_id.unique())))
         if len(teams)!=2: continue
-        a,b=map(str,teams)
+        aa,bb=teams
         for mode,(target_periods,elapsed) in MODES.items():
             s=snap_rows(g,mode)
             if s.empty: continue
-            ta,tb=team_tot(s,float(a) if a.replace('.','',1).isdigit() else a),team_tot(s,float(b) if b.replace('.','',1).isdigit() else b)
-            # recover exact IDs when numeric conversion is unsafe
-            aa,bb=teams; ta,tb=team_tot(s,aa),team_tot(s,bb)
+            ta,tb=team_tot(s,aa),team_tot(s,bb)
             target=g[g.period.isin(target_periods)]; fa,fb=team_tot(target,aa),team_tot(target,bb)
             ba=baselines[season].get((str(gid),str(aa))); bbline=baselines[season].get((str(gid),str(bb)))
             rec={'season':int(season),'game_id':str(gid),'team_a':str(aa),'team_b':str(bb),'mode':mode}
@@ -140,7 +138,8 @@ def infer(payload):
     for c in feats:
         if c in payload: row[c]=payload[c]
     x=pd.DataFrame([row])[feats]; pm=float(models['target_margin'].predict(x)[0]); pt=float(models['target_total'].predict(x)[0])
-    return {'status':'TREND_FINAL','mode':mode,'pred_margin':pm,'pred_total':pt,'direction':'TEAM_A' if pm>0 else ('TEAM_B' if pm<0 else 'TIE'),'trend_strength':strength(pm),'betting_layer':'DISABLED'}
+    status='PREVIEW_CHECK' if mode=='Q1_END' else 'TREND_FINAL'
+    return {'status':status,'mode':mode,'pred_margin':pm,'pred_total':pt,'direction':'TEAM_A' if pm>0 else ('TEAM_B' if pm<0 else 'TIE'),'trend_strength':strength(pm),'betting_layer':'DISABLED'}
 
 if __name__=='__main__':
     if len(sys.argv)>=2 and sys.argv[1]=='verify': verify()
