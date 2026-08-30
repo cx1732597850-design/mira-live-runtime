@@ -16,16 +16,15 @@ def main():
         for c in feats:
             v=row[c]
             if pd.notna(v): payload[c]=float(v)
-        # explicit gate-required aliases are present in the extracted feature set
         for k in ['cur_margin','cur_total','poss_total','poss_diff','elapsed_sec','pace_poss_per_min','a_score','a_poss','b_score','b_poss','pregame_net_diff','pregame_pace_diff','pregame_off_diff','pregame_def_diff','pregame_games_min']:
             if k not in payload and k in row.index and pd.notna(row[k]): payload[k]=float(row[k])
         out=rt.infer(payload)
-        if out.get('status')!='TREND_FINAL': raise RuntimeError(f'{mode} infer failed: {out}')
+        expected='PREVIEW_CHECK' if mode=='Q1_END' else 'TREND_FINAL'
+        if out.get('status')!=expected: raise RuntimeError(f'{mode} infer state failed: expected {expected}, got {out}')
         for k in ['pred_margin','pred_total','direction','trend_strength','betting_layer']:
             if k not in out: raise RuntimeError(f'{mode} missing {k}')
         if out['betting_layer']!='DISABLED': raise RuntimeError('betting layer leak')
         results[mode]={'game_id':str(row.game_id),'team_a':str(row.team_a),'team_b':str(row.team_b),'output':out}
-    # negative fail-closed canaries
     bad={'mode':'Q1_2P5','cur_margin':0,'cur_total':0,'poss_total':1,'poss_diff':0,'elapsed_sec':150,'pace_poss_per_min':0.4,'a_score':0,'a_poss':1,'b_score':0,'b_poss':0,'pregame_net_diff':0,'pregame_pace_diff':0,'pregame_off_diff':0,'pregame_def_diff':0,'pregame_games_min':2}
     neg=rt.infer(bad)
     if neg.get('status')!='NOT_READY' or neg.get('reason')!='INSUFFICIENT_2026_PREGAME_BASELINE': raise RuntimeError(f'negative baseline canary failed: {neg}')
