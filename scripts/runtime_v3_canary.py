@@ -14,11 +14,9 @@ def payload_from_row(row,mode):
       'mode':mode,'period':PERIOD[mode],'clock_seconds_remaining':CLOCK[mode],
       'captured_at_et':'2026-08-29T19:32:00-04:00','execution_time_et':'2026-08-29T19:32:20-04:00','input_source':'CANARY_STRUCTURED_STATE',
       'baseline_provider':v3.BASELINE_PROVIDER,'baseline_asof_et':'2026-08-29T18:45:00-04:00','baseline_source_id':'CANARY_STATMUSE_GAME_LEVEL_ADVANCED','baseline_source_hash':v2.SOURCES[2026][1],
-      'baseline_games_a':min(n,10),'baseline_games_b':min(n,10),
+      'baseline_window_games_a':min(n,10),'baseline_window_games_b':min(n,10),'baseline_prior_games_a':n,'baseline_prior_games_b':n,
     }
     for k in v2.BASELINE_COLS:p[k]=float(row[k])
-    p['pregame_games_min']=min(p['baseline_games_a'],p['baseline_games_b'])
-    # enforce exact algebraic identity required by provider contract
     p['pregame_net_diff']=p['pregame_off_diff']-p['pregame_def_diff']
     for pref in ['a','b']:
       for k in ['score','poss']+v2.STAT_COLS:p[f'{pref}_{k}']=float(row[f'{pref}_{k}'])
@@ -55,13 +53,14 @@ def main():
     x=dict(base); x['team_b_id']=x['team_a_id']; require_not_ready(v3.infer(x),'TEAM_IDENTITY_MISMATCH')
     x=dict(base); x['a_score']=x['a_score']+1; require_not_ready(v3.infer(x),'STATE_IDENTITY_MISMATCH')
     x=dict(base); x['cur_margin']=999; require_not_ready(v3.infer(x),'STATE_IDENTITY_MISMATCH')
-    x=dict(base); x['pregame_games_min']=2; require_not_ready(v3.infer(x),'BASELINE_SAMPLE_IDENTITY_MISMATCH')
-    x=dict(base); x['baseline_games_a']=2; x['pregame_games_min']=2; require_not_ready(v3.infer(x),'BASELINE_SAMPLE_COUNT_INVALID')
+    x=dict(base); x['pregame_games_min']=2; require_not_ready(v3.infer(x),'BASELINE_PRIOR_GAMES_IDENTITY_MISMATCH')
+    x=dict(base); x['baseline_window_games_a']=2; require_not_ready(v3.infer(x),'BASELINE_WINDOW_COUNT_INVALID')
+    x=dict(base); x['baseline_prior_games_a']=2; x['baseline_window_games_a']=2; x['pregame_games_min']=2; require_not_ready(v3.infer(x),'BASELINE_PRIOR_COUNT_INVALID')
     x=dict(base); x['baseline_asof_et']='2026-08-27T00:00:00-04:00'; require_not_ready(v3.infer(x),'BASELINE_SOURCE_STALE')
     x=dict(base); x['baseline_provider']='WRONG'; require_not_ready(v3.infer(x),'BASELINE_PROVIDER_MISMATCH')
     x=dict(base); x['pregame_net_diff']=x['pregame_net_diff']+1; require_not_ready(v3.infer(x),'BASELINE_IDENTITY_MISMATCH')
     x=dict(base); x['source_event_id']='WRONG'; require_not_ready(v3.infer(x),'GAME_IDENTITY_MISMATCH')
-    results['negative_canaries']=['MISSING_REQUIRED_FEATURES','WINDOW_MISMATCH_PERIOD','WINDOW_MISMATCH_CLOCK','STALE_LIVE_STATE','TEAM_IDENTITY_MISMATCH','STATE_IDENTITY_MISMATCH_SCORE','STATE_IDENTITY_MISMATCH_DERIVED','BASELINE_SAMPLE_IDENTITY_MISMATCH','BASELINE_SAMPLE_COUNT_INVALID','BASELINE_SOURCE_STALE','BASELINE_PROVIDER_MISMATCH','BASELINE_IDENTITY_MISMATCH','GAME_IDENTITY_MISMATCH']
+    results['negative_canaries']=['MISSING_REQUIRED_FEATURES','WINDOW_MISMATCH_PERIOD','WINDOW_MISMATCH_CLOCK','STALE_LIVE_STATE','TEAM_IDENTITY_MISMATCH','STATE_IDENTITY_MISMATCH_SCORE','STATE_IDENTITY_MISMATCH_DERIVED','BASELINE_PRIOR_GAMES_IDENTITY_MISMATCH','BASELINE_WINDOW_COUNT_INVALID','BASELINE_PRIOR_COUNT_INVALID','BASELINE_SOURCE_STALE','BASELINE_PROVIDER_MISMATCH','BASELINE_IDENTITY_MISMATCH','GAME_IDENTITY_MISMATCH']
     out={'status':'PASS','results':results,'betting_layer':'DISABLED'}
     root=Path('artifacts/runtime_v3_canary');root.mkdir(parents=True,exist_ok=True);(root/'canary.json').write_text(json.dumps(out,indent=2),encoding='utf-8');print(json.dumps(out,indent=2))
 
